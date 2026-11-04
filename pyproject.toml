@@ -7,6 +7,8 @@ dependencies = [
     "uvicorn",
     "psycopg[binary]",
     "pydantic-settings",
+    "prometheus-client>=0.26.0",
+    "structlog>=26.1.0",
 ]
 
 [dependency-groups]
