@@ -1,0 +1,20 @@
+groups:
+  - name: seed-service-alerts
+    rules:
+      - alert: ServiceDown
+        expr: up{job="seed-service"} == 0
+        for: 1m
+        labels:
+          serverity: critical
+        annotations:
+          summary: "seed-service недоступен"
+          description: "Prometheus не может опросить /metrics более 1 минуты."
+
+      - alert: HighErrorRate
+        expr: (sum(rate(http_requests_total{status=~"5.."}[5m])) / sum(rate(http_requests_total[5m]))) > 0.05
+        for: 2m
+        labels:
+          serverity: critical
+        annotations:
+          summary: "Высокая доля ошибок в seed-service"
+          description: "Доля 5xx превышает 5% за последние 5 минут."

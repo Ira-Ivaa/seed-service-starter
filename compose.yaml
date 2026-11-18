@@ -28,6 +28,7 @@ services:
     image: prom/prometheus:v3.14.0
     volumes:
       - ./prometheus.yaml:/etc/prometheus/prometheus.yml
+      - ./alert_rules.yml:/etc/prometheus/alert_rules.yml
     ports:
       - "9090:9090"
 
@@ -40,6 +41,13 @@ services:
       - "3000:3000"
     environment:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD}
+
+  alertmanager:
+    image: prom/alertmanager:v0.34.0
+    volumes:
+      - ./alertmanager.yml:/etc/alertmanager/alertmanager.yml
+    ports:
+      - "9093:9093"
 
 volumes:
   pgdata:

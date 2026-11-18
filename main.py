@@ -4,7 +4,7 @@ import psycopg
 import structlog
 from fastapi import FastAPI, HTTPException, Request, Response
 from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_latest
-
+from pydantic import BaseModel
 from config import settings
 
 structlog.configure(
@@ -68,6 +68,28 @@ def readiness():
         logger.warning("readiness_failed", reason="database_unavailable")
         raise HTTPException(status_code=503, detail="not ready")
     return {"status": "ready"}
+
+class Alert(BaseModel):
+    status: str
+    labels: dict[str, str]
+    annotations: dict[str, str] = {}
+
+class AlertmanagerWebhook(BaseModel):
+    status: str
+    alerts: list[Alert]
+
+@app.post("/alerts/webhook")
+def alerts_webhook(payload: AlertmanagerWebhook):
+    for alert in payload.alerts:
+        logger.warning(
+            "alert_received",
+            alertname=alert.labels.get("alertname"),
+            severity=alert.labels.get("severity"),
+            status=alert.status,
+            summary=alert.annotations.get("summary"),
+        )
+    return {"received": len(payload.alerts)}
+
 
 @app.get("/metrics")
 def metrics():
