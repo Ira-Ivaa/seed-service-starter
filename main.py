@@ -61,13 +61,14 @@ def liveness():
 @app.get("/ready")
 def readiness():
     try:
-        with psycopg.connect(settings.database_url, connect_timeout=2) as conn:
+        with psycopg.connect(settings.database_url, connect_timeout=2, options="-c statement_timeout=1000",) as conn:
             conn.execute("SELECT 1")
     except psycopg.Error:
         DB_ERRORS.inc()
         logger.warning("readiness_failed", reason="database_unavailable")
         raise HTTPException(status_code=503, detail="not ready")
     return {"status": "ready"}
+
 
 class Alert(BaseModel):
     status: str
@@ -90,7 +91,32 @@ def alerts_webhook(payload: AlertmanagerWebhook):
         )
     return {"received": len(payload.alerts)}
 
+@app.get("/stats")
+def stats():
+    try:
+        with psycopg.connect(
+            settings.database_url,
+            connect_timeout=2,
+            options="-c statement_timeout=1000",
+        ) as conn:
+            row = conn.execute("SELECT count(*) FROM pg_stat_activity").fetchone()
+        return {"active_connections": row[0], "source": "database"}
+    except psycopg.Error:
+        logger.warning("stats_degraded", reason="database_unavailable")
+        return {"active_connections": None, "source": "fallback"}
+
 
 @app.get("/metrics")
 def metrics():
     return Response(generate_latest(), media_type=CONTENT_TYPE_LATEST)
+
+def call_with_retry(func, attempts=3, base_delay=0.2):
+    for attempt in range(1, attempts + 1):
+        try:
+            return func()
+        except psycopg.Error:
+            if attempt == attempts:
+                raise
+            delay = base_delay * (2 ** (attempt - 1))
+            logger.warning("retry", attempt=attempt, delay=delay)
+            time.sleep(delay)
